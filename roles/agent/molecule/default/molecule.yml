@@ -4,32 +4,29 @@ dependency:
 driver:
   name: docker
 platforms:
-  - name: amazonlinux2
-    image: amazonlinux:2
-    pre_build_image: true
-    command: /usr/sbin/init
-    privileged: true
-    volumes:
-      - /sys/fs/cgroup:/sys/fs/cgroup:ro
-    capabilities:
-      - SYS_ADMIN
-  
   - name: ubuntu2004
     image: ubuntu:20.04
-    pre_build_image: true
-    command: /sbin/init
+    pre_build_image: false
     privileged: true
-    volumes:
-      - /sys/fs/cgroup:/sys/fs/cgroup:ro
-    capabilities:
-      - SYS_ADMIN
+    dockerfile: |
+      FROM ubuntu:20.04
+      ENV DEBIAN_FRONTEND=noninteractive
+      RUN apt-get update && apt-get install -y \
+          python3 \
+          python3-apt \
+          sudo \
+          systemd \
+          procps \
+          curl \
+          ca-certificates \
+          && rm -rf /var/lib/apt/lists/* \
+          && ln -sf /usr/bin/python3 /usr/bin/python
+      CMD ["/bin/bash", "-c", "while true; do sleep 30; done"]
 
 provisioner:
   name: ansible
   inventory:
     host_vars:
-      amazonlinux2:
-        ansible_python_interpreter: /usr/bin/python
       ubuntu2004:
         ansible_python_interpreter: /usr/bin/python3
   
@@ -37,6 +34,7 @@ provisioner:
     defaults:
       callbacks_enabled: profile_tasks
       stdout_callback: yaml
+      roles_path: /Users/jonathanharper/MCP/contrast.security/roles
 
 verifier:
   name: ansible

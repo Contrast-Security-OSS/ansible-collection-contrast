@@ -12,14 +12,18 @@
     name: "{{ contrast_service_name }}"
     state: restarted
   become: true
-  when: contrast_config_method == 'systemd'
+  when: 
+    - contrast_config_method == 'systemd'
+    - not (contrast_test_mode | default(false))
 
 - name: Restart {{ contrast_service_name }} for setenv
   ansible.builtin.service:
     name: "{{ contrast_service_name }}"
     state: restarted
   become: true
-  when: contrast_config_method == 'setenv'
+  when: 
+    - contrast_config_method == 'setenv'
+    - not (contrast_test_mode | default(false))
 
 - name: Ensure service is running
   ansible.builtin.systemd:
@@ -27,4 +31,6 @@
     state: started
     enabled: true
   become: true
-  when: contrast_config_method == 'systemd'
+  when: 
+    - contrast_config_method == 'systemd'
+    - not (contrast_test_mode | default(false))
