@@ -1,0 +1,21 @@
+---
+# Ansible requirements file
+# Install with: ansible-galaxy install -r requirements.yml
+
+collections:
+  # Contrast Security Collection
+  - name: contrast.security
+    version: ">=1.0.0"
+    
+  # Optional: Community collections that might be useful
+  - name: community.general
+    version: ">=3.0.0"
+    
+  - name: ansible.posix
+    version: ">=1.0.0"
+
+# If you need specific roles (example)
+roles: []
+  # Example of how to include roles if needed
+  # - name: geerlingguy.java
+  #   version: "2.1.0"

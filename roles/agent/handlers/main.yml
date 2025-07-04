@@ -1,0 +1,30 @@
+---
+# handlers file for contrast.security.agent role
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+  when: contrast_config_method == 'systemd'
+
+- name: Restart {{ contrast_service_name }}
+  ansible.builtin.systemd:
+    name: "{{ contrast_service_name }}"
+    state: restarted
+  become: true
+  when: contrast_config_method == 'systemd'
+
+- name: Restart {{ contrast_service_name }} for setenv
+  ansible.builtin.service:
+    name: "{{ contrast_service_name }}"
+    state: restarted
+  become: true
+  when: contrast_config_method == 'setenv'
+
+- name: Ensure service is running
+  ansible.builtin.systemd:
+    name: "{{ contrast_service_name }}"
+    state: started
+    enabled: true
+  become: true
+  when: contrast_config_method == 'systemd'

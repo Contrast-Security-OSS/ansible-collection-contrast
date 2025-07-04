@@ -1,0 +1,159 @@
+---
+# Example playbook for deploying Contrast Security Java agent
+# This playbook demonstrates various configuration options
+
+- name: Deploy Contrast Security Agent to Application Servers
+  hosts: app_servers
+  become: yes
+  
+  vars:
+    # Store sensitive data in vault or environment variables
+    contrast_api_credentials:
+      url: "{{ lookup('env', 'CONTRAST_API_URL') | default('https://app.contrastsecurity.com/Contrast') }}"
+      api_key: "{{ lookup('env', 'CONTRAST_API_KEY') }}"
+      service_key: "{{ lookup('env', 'CONTRAST_SERVICE_KEY') }}"
+      user_name: "{{ lookup('env', 'CONTRAST_USER_NAME') }}"
+  
+  pre_tasks:
+    - name: Ensure Tomcat is installed
+      package:
+        name: tomcat
+        state: present
+      when: ansible_os_family == "RedHat"
+    
+    - name: Ensure Tomcat is running
+      systemd:
+        name: tomcat
+        state: started
+        enabled: yes
+  
+  roles:
+    # Deploy Contrast agent
+    - role: contrast.security.agent
+      vars:
+        contrast_agent_enabled: true
+        contrast_service_name: "tomcat"
+        contrast_agent_version: "LATEST"  # Or specify version like "6.19.0"
+        
+        # Configuration via environment variables (default)
+        contrast_config_source: "environment"
+        
+        # Main configuration
+        contrast_security_config:
+          api:
+            url: "{{ contrast_api_credentials.url }}"
+            api_key: "{{ contrast_api_credentials.api_key }}"
+            service_key: "{{ contrast_api_credentials.service_key }}"
+            user_name: "{{ contrast_api_credentials.user_name }}"
+          
+          application:
+            name: "{{ inventory_hostname_short }}-app"
+            tags: "env:{{ env | default('dev') }},team:{{ team | default('devops') }}"
+          
+          server:
+            name: "{{ inventory_hostname }}"
+            environment: "{{ env | default('development') }}"
+            tags: "datacenter:{{ datacenter | default('us-east-1') }}"
+          
+          agent:
+            logger:
+              path: "/var/log/contrast/{{ inventory_hostname_short }}.log"
+              level: "{{ contrast_log_level | default('INFO') }}"
+              
+        # Additional JVM arguments
+        contrast_jvm_args:
+          - "-Xmx{{ java_heap_size | default('1024m') }}"
+          - "-Xms{{ java_heap_size | default('1024m') }}"
+          # Add this if using DataDog
+          # - "-Ddd.trace.classes.exclude=com.contrast*"
+  
+  post_tasks:
+    - name: Verify Contrast agent is loaded
+      command: "ps aux | grep -i contrast | grep -v grep"
+      register: contrast_process
+      changed_when: false
+      failed_when: false
+    
+    - name: Display agent status
+      debug:
+        msg: |
+          Contrast agent deployment complete!
+          Service: {{ contrast_service_name }}
+          Agent installed at: {{ contrast_agent_path }}
+          {% if contrast_process.rc == 0 %}
+          Agent is running in the JVM process
+          {% else %}
+          Agent will be loaded on next service restart
+          {% endif %}
+
+---
+# Alternative example using YAML configuration
+
+- name: Deploy Contrast with YAML Configuration
+  hosts: app_servers
+  become: yes
+  
+  roles:
+    - role: contrast.security.agent
+      vars:
+        contrast_agent_enabled: true
+        contrast_service_name: "tomcat"
+        
+        # Use YAML file for configuration
+        contrast_config_source: "yaml"
+        contrast_config_path: "/etc/contrast/{{ inventory_hostname_short }}.yaml"
+        
+        contrast_security_config:
+          api:
+            url: "{{ vault_contrast_url }}"
+            api_key: "{{ vault_contrast_api_key }}"
+            service_key: "{{ vault_contrast_service_key }}"
+            user_name: "{{ vault_contrast_user_name }}"
+          
+          application:
+            name: "{{ app_name }}"
+            version: "{{ app_version | default('1.0.0') }}"
+            tags: "{{ app_tags | default('') }}"
+          
+          assess:
+            enable: "{{ assess_enabled | default(false) }}"
+            tags: "{{ assess_tags | default('') }}"
+            
+          protect:
+            enable: "{{ protect_enabled | default(true) }}"
+            rules:
+              disabled_rules: "{{ disabled_rules | default([]) }}"
+
+---
+# Example: Rolling deployment with verification
+
+- name: Rolling Contrast Agent Deployment
+  hosts: app_servers
+  become: yes
+  serial: "30%"  # Deploy to 30% of servers at a time
+  
+  roles:
+    - role: contrast.security.agent
+      vars:
+        contrast_agent_enabled: true
+        contrast_service_name: "{{ app_service_name | default('tomcat') }}"
+        contrast_security_config:
+          api: "{{ contrast_api_config }}"
+          application:
+            name: "{{ app_name }}"
+            tags: "deployment:rolling,date:{{ ansible_date_time.date }}"
+  
+  post_tasks:
+    - name: Wait for application to be healthy
+      uri:
+        url: "http://{{ ansible_default_ipv4.address }}:8080/health"
+        status_code: 200
+      register: result
+      until: result.status == 200
+      retries: 30
+      delay: 10
+    
+    - name: Verify Contrast agent is reporting
+      pause:
+        prompt: "Verify agent is reporting in Contrast UI, then press Enter to continue"
+      when: ansible_play_batch.index(inventory_hostname) == 0

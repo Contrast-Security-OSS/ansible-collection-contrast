@@ -1,0 +1,39 @@
+---
+# main tasks file for contrast.security.agent role
+
+- name: Validate required variables
+  ansible.builtin.assert:
+    that:
+      - contrast_service_name is defined
+      - contrast_service_name | length > 0
+    fail_msg: "contrast_service_name must be defined and not empty"
+    success_msg: "All required variables are properly defined"
+
+- name: Display agent configuration
+  ansible.builtin.debug:
+    msg:
+      - "Contrast agent enabled: {{ contrast_agent_enabled }}"
+      - "Target service: {{ contrast_service_name }}"
+      - "Configuration method: {{ contrast_config_method }}"
+      - "Configuration source: {{ contrast_config_source }}"
+      - "Agent version: {{ contrast_agent_version }}"
+
+- name: Include agent installation tasks
+  ansible.builtin.include_tasks: install.yml
+  when: contrast_agent_enabled | bool
+
+- name: Include agent configuration tasks
+  ansible.builtin.include_tasks: configure.yml
+  when: contrast_agent_enabled | bool
+
+- name: Include agent activation tasks
+  ansible.builtin.include_tasks: activate.yml
+
+- name: Verify agent status
+  ansible.builtin.debug:
+    msg: >
+      {% if contrast_agent_enabled %}
+      Contrast agent has been activated for {{ contrast_service_name }}.
+      {% else %}
+      Contrast agent has been deactivated for {{ contrast_service_name }}.
+      {% endif %}

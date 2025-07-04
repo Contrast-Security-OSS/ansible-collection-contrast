@@ -1,0 +1,65 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  
+  pre_tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+      changed_when: false
+    
+    - name: Install required packages
+      package:
+        name:
+          - systemd
+          - procps
+        state: present
+    
+    - name: Create mock tomcat service
+      copy:
+        dest: /etc/systemd/system/tomcat.service
+        content: |
+          [Unit]
+          Description=Mock Tomcat Service
+          After=network.target
+          
+          [Service]
+          Type=simple
+          ExecStart=/bin/sleep infinity
+          Restart=always
+          
+          [Install]
+          WantedBy=multi-user.target
+    
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+    
+    - name: Start mock tomcat service
+      systemd:
+        name: tomcat
+        state: started
+        enabled: yes
+  
+  tasks:
+    - name: "Include contrast.security.agent role"
+      include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
+      vars:
+        contrast_agent_enabled: true
+        contrast_service_name: "tomcat"
+        contrast_agent_version: "6.19.0"
+        contrast_security_config:
+          api:
+            url: "https://app.contrastsecurity.com/Contrast"
+            api_key: "test-api-key"
+            service_key: "test-service-key"
+            user_name: "test-user"
+          application:
+            name: "molecule-test-app"
+            tags: "env:test,molecule:true"
+          server:
+            name: "molecule-test-server"
+            environment: "test"

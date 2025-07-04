@@ -1,0 +1,74 @@
+---
+# defaults file for contrast.security.agent role
+
+# Master toggle to enable or disable agent activation
+# If true, the role activates the agent. If false, it deactivates the agent.
+contrast_agent_enabled: false
+
+# The name of the systemd service to target for agent injection
+contrast_service_name: tomcat
+
+# Version of the agent to download
+# Can be a specific version number (e.g., '6.19.0') or 'LATEST'
+contrast_agent_version: LATEST
+
+# Full URL to download the agent JAR
+# Defaults to Maven Central URL for the specified version
+# Can be overridden for EOP or air-gapped environments
+contrast_agent_download_url: "{% if contrast_agent_version == 'LATEST' %}https://repo1.maven.org/maven2/com/contrastsecurity/contrast-agent/maven-metadata.xml{% else %}https://repo1.maven.org/maven2/com/contrastsecurity/contrast-agent/{{ contrast_agent_version }}/contrast-agent-{{ contrast_agent_version }}.jar{% endif %}"
+
+# Filesystem path where the contrast.jar will be placed
+contrast_agent_path: /opt/contrast/contrast.jar
+
+# Method for agent activation and configuration
+# Choices: systemd, setenv
+contrast_config_method: systemd
+
+# Source of configuration settings
+# Choices: environment, yaml
+contrast_config_source: environment
+
+# A dictionary of Contrast agent settings
+# Maps directly to contrast_security.yaml keys
+contrast_security_config: {}
+# Example:
+#   api:
+#     url: "https://app.contrastsecurity.com/Contrast"
+#     api_key: "your-api-key"
+#     service_key: "your-service-key"
+#     user_name: "your-user-name"
+#   application:
+#     name: "MyApp"
+#     tags: "env:prod,owner:team-alpha"
+#   agent:
+#     logger:
+#       path: "/var/log/contrast/contrast.log"
+
+# Path to the Jinja2 template for generating contrast_security.yaml
+contrast_yaml_template_src: contrast_security.yaml.j2
+
+# Destination for the generated contrast_security.yaml file
+contrast_config_path: /etc/contrast/contrast_security.yaml
+
+# A list of additional, custom JVM arguments to inject
+contrast_jvm_args: []
+# Example for DataDog compatibility:
+#   - "-Ddd.trace.classes.exclude=com.contrast*"
+#   - "-Xmx1280m"
+
+# Create necessary directories
+contrast_create_directories: true
+
+# Owner and group for Contrast files
+contrast_file_owner: root
+contrast_file_group: root
+
+# Permissions for directories and files
+contrast_directory_mode: '0755'
+contrast_file_mode: '0644'
+
+# Download timeout in seconds
+contrast_download_timeout: 60
+
+# Whether to validate SSL certificates when downloading
+contrast_download_validate_certs: true

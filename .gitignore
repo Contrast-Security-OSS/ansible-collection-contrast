@@ -1,0 +1,42 @@
+# General
+*.retry
+*.log
+*.pyc
+__pycache__/
+.pytest_cache/
+
+# Ansible
+*.tar.gz
+.galaxy/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.molecule/
+.cache/
+.tox/
+tests/output/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# Credentials (never commit these!)
+**/vault.yml
+**/credentials.yml
+**/secrets.yml
+**/*_credentials.yml
+**/*_secrets.yml
+
+# Local overrides
+local.yml

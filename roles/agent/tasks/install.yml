@@ -1,0 +1,63 @@
+---
+# install.yml - Agent download and placement tasks
+
+- name: Create Contrast agent directory
+  ansible.builtin.file:
+    path: "{{ contrast_agent_path | dirname }}"
+    state: directory
+    owner: "{{ contrast_file_owner }}"
+    group: "{{ contrast_file_group }}"
+    mode: "{{ contrast_directory_mode }}"
+  become: true
+  when: contrast_create_directories | bool
+
+- name: Get latest version from Maven metadata
+  block:
+    - name: Download Maven metadata
+      ansible.builtin.uri:
+        url: https://repo1.maven.org/maven2/com/contrastsecurity/contrast-agent/maven-metadata.xml
+        return_content: yes
+      register: maven_metadata
+      when: contrast_agent_version == 'LATEST'
+
+    - name: Extract latest version
+      ansible.builtin.set_fact:
+        contrast_agent_actual_version: "{{ maven_metadata.content | regex_search('<release>([^<]+)</release>', '\\1') | first }}"
+      when: 
+        - contrast_agent_version == 'LATEST'
+        - maven_metadata is defined
+        - maven_metadata.content is defined
+
+    - name: Set actual version for specific version
+      ansible.builtin.set_fact:
+        contrast_agent_actual_version: "{{ contrast_agent_version }}"
+      when: contrast_agent_version != 'LATEST'
+
+- name: Set download URL for agent JAR
+  ansible.builtin.set_fact:
+    contrast_agent_jar_url: "https://repo1.maven.org/maven2/com/contrastsecurity/contrast-agent/{{ contrast_agent_actual_version }}/contrast-agent-{{ contrast_agent_actual_version }}.jar"
+  when: 
+    - contrast_agent_download_url is search('maven-metadata.xml')
+    - contrast_agent_actual_version is defined
+
+- name: Use provided download URL
+  ansible.builtin.set_fact:
+    contrast_agent_jar_url: "{{ contrast_agent_download_url }}"
+  when: contrast_agent_download_url is not search('maven-metadata.xml')
+
+- name: Download Contrast agent JAR
+  ansible.builtin.get_url:
+    url: "{{ contrast_agent_jar_url }}"
+    dest: "{{ contrast_agent_path }}"
+    owner: "{{ contrast_file_owner }}"
+    group: "{{ contrast_file_group }}"
+    mode: "{{ contrast_file_mode }}"
+    timeout: "{{ contrast_download_timeout }}"
+    validate_certs: "{{ contrast_download_validate_certs }}"
+  become: true
+  register: agent_download
+
+- name: Display download status
+  ansible.builtin.debug:
+    msg: "Contrast agent {{ contrast_agent_actual_version | default(contrast_agent_version) }} downloaded to {{ contrast_agent_path }}"
+  when: agent_download.changed

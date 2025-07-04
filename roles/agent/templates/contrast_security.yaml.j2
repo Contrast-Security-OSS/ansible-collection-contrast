@@ -1,0 +1,80 @@
+---
+# {{ ansible_managed }}
+# Contrast Security Agent Configuration
+# Generated for: {{ contrast_service_name }}
+
+{% if contrast_security_config %}
+# API Configuration
+{% if contrast_security_config.api is defined %}
+api:
+{% for key, value in contrast_security_config.api.items() %}
+  {{ key }}: {{ value | to_json }}
+{% endfor %}
+{% endif %}
+
+# Application Configuration
+{% if contrast_security_config.application is defined %}
+application:
+{% for key, value in contrast_security_config.application.items() %}
+  {{ key }}: {{ value | to_json }}
+{% endfor %}
+{% endif %}
+
+# Server Configuration
+{% if contrast_security_config.server is defined %}
+server:
+{% for key, value in contrast_security_config.server.items() %}
+  {{ key }}: {{ value | to_json }}
+{% endfor %}
+{% endif %}
+
+# Agent Configuration
+{% if contrast_security_config.agent is defined %}
+agent:
+{% for key, value in contrast_security_config.agent.items() recursive %}
+{% if value is mapping %}
+  {{ key }}:
+{% for subkey, subvalue in value.items() %}
+    {{ subkey }}: {{ subvalue | to_json }}
+{% endfor %}
+{% else %}
+  {{ key }}: {{ value | to_json }}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+# Assess Configuration
+{% if contrast_security_config.assess is defined %}
+assess:
+{% for key, value in contrast_security_config.assess.items() %}
+  {{ key }}: {{ value | to_json }}
+{% endfor %}
+{% endif %}
+
+# Protect Configuration
+{% if contrast_security_config.protect is defined %}
+protect:
+{% for key, value in contrast_security_config.protect.items() %}
+  {{ key }}: {{ value | to_json }}
+{% endfor %}
+{% endif %}
+
+# Additional configurations
+{% for section, config in contrast_security_config.items() if section not in ['api', 'application', 'server', 'agent', 'assess', 'protect'] %}
+{{ section }}:
+{% for key, value in config.items() recursive %}
+{% if value is mapping %}
+  {{ key }}:
+{% for subkey, subvalue in value.items() %}
+    {{ subkey }}: {{ subvalue | to_json }}
+{% endfor %}
+{% else %}
+  {{ key }}: {{ value | to_json }}
+{% endif %}
+{% endfor %}
+{% endfor %}
+
+{% else %}
+# No configuration provided
+# Please set contrast_security_config in your playbook
+{% endif %}

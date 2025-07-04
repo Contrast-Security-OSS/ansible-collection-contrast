@@ -1,0 +1,41 @@
+---
+# Ansible Collection metadata file
+namespace: contrast
+name: security
+version: 1.0.0
+readme: README.md
+authors:
+  - Contrast Security <support@contrastsecurity.com>
+
+description: >
+  Official Ansible Collection for deploying and managing Contrast Security agents.
+  This collection provides roles for automated deployment of the Contrast Java agent
+  on EC2 instances and other platforms.
+
+license:
+  - MIT
+
+tags:
+  - security
+  - appsec
+  - contrast
+  - java
+  - agent
+  - apm
+  - monitoring
+  - vulnerability
+
+repository: https://github.com/Contrast-Security/ansible-collection-contrast
+documentation: https://github.com/Contrast-Security/ansible-collection-contrast/blob/main/README.md
+homepage: https://www.contrastsecurity.com
+issues: https://github.com/Contrast-Security/ansible-collection-contrast/issues
+
+dependencies: {}
+
+build_ignore:
+  - .git
+  - .github
+  - tests/output
+  - '*.tar.gz'
+  - .gitignore
+  - .pytest_cache

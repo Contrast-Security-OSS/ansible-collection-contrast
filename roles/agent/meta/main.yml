@@ -1,0 +1,48 @@
+---
+# meta file for contrast.security.agent role
+
+galaxy_info:
+  role_name: agent
+  namespace: contrast.security
+  author: Contrast Security
+  description: >
+    Official Ansible role for deploying and managing the Contrast Security Java agent.
+    Supports automated deployment on EC2 instances with Tomcat and other Java application servers.
+  company: Contrast Security
+  license: MIT
+  min_ansible_version: "2.9"
+  
+  platforms:
+    - name: EL
+      versions:
+        - "7"
+        - "8"
+        - "9"
+    - name: Amazon
+      versions:
+        - "2"
+        - "2023"
+    - name: Ubuntu
+      versions:
+        - bionic
+        - focal
+        - jammy
+    - name: Debian
+      versions:
+        - buster
+        - bullseye
+        - bookworm
+  
+  galaxy_tags:
+    - security
+    - contrast
+    - java
+    - agent
+    - appsec
+    - vulnerability
+    - monitoring
+    - tomcat
+    - ec2
+    - aws
+
+dependencies: []

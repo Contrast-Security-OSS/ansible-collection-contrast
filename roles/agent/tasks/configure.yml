@@ -1,0 +1,58 @@
+---
+# configure.yml - Agent configuration tasks
+
+- name: Create Contrast configuration directory
+  ansible.builtin.file:
+    path: "{{ contrast_config_path | dirname }}"
+    state: directory
+    owner: "{{ contrast_file_owner }}"
+    group: "{{ contrast_file_group }}"
+    mode: "{{ contrast_directory_mode }}"
+  become: true
+  when: 
+    - contrast_config_source == 'yaml'
+    - contrast_create_directories | bool
+
+- name: Deploy contrast_security.yaml from template
+  ansible.builtin.template:
+    src: "{{ contrast_yaml_template_src }}"
+    dest: "{{ contrast_config_path }}"
+    owner: "{{ contrast_file_owner }}"
+    group: "{{ contrast_file_group }}"
+    mode: "{{ contrast_file_mode }}"
+    backup: yes
+  become: true
+  when: contrast_config_source == 'yaml'
+  notify:
+    - Reload systemd
+    - Restart {{ contrast_service_name }}
+
+- name: Build environment variables from config dictionary
+  ansible.builtin.set_fact:
+    contrast_env_vars: |
+      {% set env_vars = [] %}
+      {% for key, value in contrast_security_config.items() recursive %}
+        {% if value is mapping %}
+          {% for subkey, subvalue in value.items() %}
+            {% set var_name = 'CONTRAST__' + key.upper() + '__' + subkey.upper() %}
+            {% set _ = env_vars.append(var_name + '=' + subvalue | string) %}
+          {% endfor %}
+        {% else %}
+          {% set var_name = 'CONTRAST__' + key.upper() %}
+          {% set _ = env_vars.append(var_name + '=' + value | string) %}
+        {% endif %}
+      {% endfor %}
+      {{ env_vars }}
+  when: 
+    - contrast_config_source == 'environment'
+    - contrast_security_config | length > 0
+
+- name: Display configuration method
+  ansible.builtin.debug:
+    msg: >
+      Configuration method: {{ contrast_config_source }}
+      {% if contrast_config_source == 'yaml' %}
+      Configuration file: {{ contrast_config_path }}
+      {% else %}
+      Environment variables will be set during activation
+      {% endif %}

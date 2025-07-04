@@ -1,0 +1,122 @@
+---
+# activate.yml - Agent activation/deactivation tasks
+
+- name: Agent activation block (systemd method)
+  block:
+    - name: Create systemd override directory
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ contrast_service_name }}.service.d"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      become: true
+
+    - name: Deploy systemd override configuration
+      ansible.builtin.template:
+        src: contrast.conf.j2
+        dest: "/etc/systemd/system/{{ contrast_service_name }}.service.d/10-contrast.conf"
+        owner: root
+        group: root
+        mode: '0644'
+        backup: yes
+      become: true
+      notify:
+        - Reload systemd
+        - Restart {{ contrast_service_name }}
+  when:
+    - contrast_agent_enabled | bool
+    - contrast_config_method == 'systemd'
+
+- name: Agent activation block (setenv method)
+  block:
+    - name: Check if setenv.sh exists
+      ansible.builtin.stat:
+        path: "/opt/{{ contrast_service_name }}/bin/setenv.sh"
+      register: setenv_file
+      become: true
+
+    - name: Create setenv.sh if it doesn't exist
+      ansible.builtin.file:
+        path: "/opt/{{ contrast_service_name }}/bin/setenv.sh"
+        state: touch
+        owner: "{{ contrast_service_name }}"
+        group: "{{ contrast_service_name }}"
+        mode: '0755'
+      become: true
+      when: not setenv_file.stat.exists
+
+    - name: Add Contrast configuration to setenv.sh
+      ansible.builtin.blockinfile:
+        path: "/opt/{{ contrast_service_name }}/bin/setenv.sh"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK: Contrast Security"
+        block: |
+          # Contrast Security Java Agent Configuration
+          CONTRAST_OPTS="-javaagent:{{ contrast_agent_path }}"
+          {% if contrast_config_source == 'yaml' %}
+          CONTRAST_OPTS="${CONTRAST_OPTS} -Dcontrast.config.path={{ contrast_config_path }}"
+          {% endif %}
+          {% if contrast_config_source == 'environment' and contrast_security_config %}
+          {% for key, value in contrast_security_config.items() recursive %}
+          {% if value is mapping %}
+          {% for subkey, subvalue in value.items() %}
+          CONTRAST_OPTS="${CONTRAST_OPTS} -Dcontrast.{{ key }}.{{ subkey }}={{ subvalue }}"
+          {% endfor %}
+          {% else %}
+          CONTRAST_OPTS="${CONTRAST_OPTS} -Dcontrast.{{ key }}={{ value }}"
+          {% endif %}
+          {% endfor %}
+          {% endif %}
+          {% for arg in contrast_jvm_args %}
+          CONTRAST_OPTS="${CONTRAST_OPTS} {{ arg }}"
+          {% endfor %}
+          export CATALINA_OPTS="${CATALINA_OPTS} ${CONTRAST_OPTS}"
+        state: present
+      become: true
+      notify:
+        - Restart {{ contrast_service_name }} for setenv
+  when:
+    - contrast_agent_enabled | bool
+    - contrast_config_method == 'setenv'
+
+- name: Agent deactivation block (systemd method)
+  block:
+    - name: Remove systemd override configuration
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ contrast_service_name }}.service.d/10-contrast.conf"
+        state: absent
+      become: true
+      notify:
+        - Reload systemd
+        - Restart {{ contrast_service_name }}
+
+    - name: Check if override directory is empty
+      ansible.builtin.find:
+        paths: "/etc/systemd/system/{{ contrast_service_name }}.service.d"
+        file_type: file
+      register: override_files
+      become: true
+
+    - name: Remove empty override directory
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ contrast_service_name }}.service.d"
+        state: absent
+      become: true
+      when: override_files.files | length == 0
+  when:
+    - not contrast_agent_enabled | bool
+    - contrast_config_method == 'systemd'
+
+- name: Agent deactivation block (setenv method)
+  block:
+    - name: Remove Contrast configuration from setenv.sh
+      ansible.builtin.blockinfile:
+        path: "/opt/{{ contrast_service_name }}/bin/setenv.sh"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK: Contrast Security"
+        state: absent
+      become: true
+      notify:
+        - Restart {{ contrast_service_name }} for setenv
+  when:
+    - not contrast_agent_enabled | bool
+    - contrast_config_method == 'setenv'

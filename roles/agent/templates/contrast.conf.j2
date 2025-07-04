@@ -1,0 +1,46 @@
+# {{ ansible_managed }}
+# Contrast Security Java Agent Configuration for {{ contrast_service_name }}
+
+[Service]
+{% set java_tool_options = [] %}
+
+# Add Contrast agent
+{% set _ = java_tool_options.append('-javaagent:' + contrast_agent_path) %}
+
+# Add configuration path if using YAML
+{% if contrast_config_source == 'yaml' %}
+{% set _ = java_tool_options.append('-Dcontrast.config.path=' + contrast_config_path) %}
+{% endif %}
+
+# Add configuration via system properties if using environment
+{% if contrast_config_source == 'environment' and contrast_security_config %}
+{% for key, value in contrast_security_config.items() recursive %}
+{% if value is mapping %}
+{% for subkey, subvalue in value.items() %}
+{% set _ = java_tool_options.append('-Dcontrast.' + key + '.' + subkey + '=' + subvalue | string) %}
+{% endfor %}
+{% else %}
+{% set _ = java_tool_options.append('-Dcontrast.' + key + '=' + value | string) %}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+# Add custom JVM arguments
+{% for arg in contrast_jvm_args %}
+{% set _ = java_tool_options.append(arg) %}
+{% endfor %}
+
+Environment="JAVA_TOOL_OPTIONS={{ java_tool_options | join(' ') }}"
+
+# Set environment variables if using environment configuration
+{% if contrast_config_source == 'environment' and contrast_security_config %}
+{% for key, value in contrast_security_config.items() recursive %}
+{% if value is mapping %}
+{% for subkey, subvalue in value.items() %}
+Environment="CONTRAST__{{ key | upper }}__{{ subkey | upper }}={{ subvalue }}"
+{% endfor %}
+{% else %}
+Environment="CONTRAST__{{ key | upper }}={{ value }}"
+{% endif %}
+{% endfor %}
+{% endif %}

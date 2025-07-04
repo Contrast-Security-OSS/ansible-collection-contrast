@@ -1,0 +1,109 @@
+---
+# Example playbook to deactivate Contrast Security agent
+# This cleanly removes the agent configuration and restarts services
+
+- name: Deactivate Contrast Security Agent
+  hosts: "{{ target_hosts | default('app_servers') }}"
+  become: yes
+  
+  vars:
+    # Set to false to deactivate
+    contrast_agent_enabled: false
+  
+  pre_tasks:
+    - name: Confirm deactivation
+      pause:
+        prompt: |
+          This will deactivate the Contrast agent on the following hosts:
+          {{ ansible_play_hosts | join(', ') }}
+          
+          Press Enter to continue or Ctrl+C to cancel
+      run_once: true
+      when: confirm_deactivation | default(true) | bool
+  
+  roles:
+    - role: contrast.security.agent
+      vars:
+        contrast_service_name: "{{ app_service_name | default('tomcat') }}"
+  
+  post_tasks:
+    - name: Verify agent is not running
+      shell: "ps aux | grep -i contrast | grep -v grep || true"
+      register: contrast_check
+      changed_when: false
+    
+    - name: Check systemd override removal
+      stat:
+        path: "/etc/systemd/system/{{ contrast_service_name }}.service.d/10-contrast.conf"
+      register: override_file
+      when: contrast_config_method | default('systemd') == 'systemd'
+    
+    - name: Display deactivation status
+      debug:
+        msg: |
+          Contrast agent deactivation complete!
+          
+          Agent running: {{ 'No' if contrast_check.stdout == '' else 'Still running - will stop on next restart' }}
+          {% if contrast_config_method | default('systemd') == 'systemd' %}
+          Override file removed: {{ 'Yes' if not override_file.stat.exists else 'No' }}
+          {% endif %}
+          
+          The {{ contrast_service_name }} service has been restarted without the agent.
+
+---
+# Example: Selective deactivation based on conditions
+
+- name: Conditionally Deactivate Contrast Agent
+  hosts: app_servers
+  become: yes
+  
+  tasks:
+    - name: Check if we should deactivate (example condition)
+      set_fact:
+        should_deactivate: "{{ true if (ansible_memtotal_mb < 2048 or custom_condition | default(false)) else false }}"
+    
+    - name: Apply Contrast role with conditional deactivation
+      include_role:
+        name: contrast.security.agent
+      vars:
+        contrast_agent_enabled: "{{ not should_deactivate }}"
+        contrast_service_name: "tomcat"
+        contrast_security_config: "{{ production_contrast_config }}"
+      when: contrast_management_enabled | default(true)
+
+---
+# Example: Emergency deactivation across all environments
+
+- name: Emergency Contrast Agent Deactivation
+  hosts: all:!excluded_hosts
+  become: yes
+  serial: "50%"
+  max_fail_percentage: 0
+  
+  vars:
+    emergency_deactivation: true
+    contrast_agent_enabled: false
+  
+  tasks:
+    - name: Include Contrast role for deactivation
+      include_role:
+        name: contrast.security.agent
+      vars:
+        contrast_service_name: "{{ app_service_name | default('tomcat') }}"
+      when:
+        - emergency_deactivation | bool
+        - inventory_hostname not in critical_hosts | default([])
+    
+    - name: Send notification
+      mail:
+        to: "{{ ops_email | default('ops@example.com') }}"
+        subject: "Contrast Agent Deactivated - {{ inventory_hostname }}"
+        body: |
+          The Contrast Security agent has been deactivated on {{ inventory_hostname }}.
+          
+          Reason: Emergency deactivation
+          Time: {{ ansible_date_time.iso8601 }}
+          Triggered by: {{ ansible_user_id }}
+      when:
+        - emergency_deactivation | bool
+        - send_notifications | default(false) | bool

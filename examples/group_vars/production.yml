@@ -1,0 +1,67 @@
+---
+# group_vars/production.yml
+# Production-specific configuration for Contrast Security
+
+# Enable agent in production
+contrast_agent_enabled: true
+
+# Production configuration
+contrast_security_config:
+  api:
+    url: "https://app.contrastsecurity.com/Contrast"
+    # Use vault for sensitive data
+    api_key: "{{ vault_contrast_api_key }}"
+    service_key: "{{ vault_contrast_service_key }}"
+    user_name: "{{ vault_contrast_user_name }}"
+  
+  application:
+    name: "{{ app_name | default(inventory_hostname_short) }}"
+    tags: "env:production,deployment:{{ deployment_id | default('manual') }}"
+    version: "{{ app_version | default('unknown') }}"
+  
+  server:
+    name: "{{ inventory_hostname }}"
+    environment: "production"
+    tags: "dc:{{ datacenter }},region:{{ aws_region | default('us-east-1') }}"
+  
+  agent:
+    logger:
+      path: "/var/log/contrast/contrast.log"
+      level: "WARN"
+      roll_daily: true
+      roll_size: "100MB"
+      backups: 7
+    
+    security_logger:
+      path: "/var/log/contrast/security.log"
+      level: "INFO"
+  
+  # Production: Protect enabled, Assess disabled
+  assess:
+    enable: false
+  
+  protect:
+    enable: true
+    rules:
+      # Example: disable specific rules if needed
+      disabled_rules: []
+    
+    # Protection settings
+    mode: "block"  # or "monitor"
+    
+# JVM settings for production
+contrast_jvm_args:
+  - "-Xmx2048m"
+  - "-Xms2048m"
+  # If using with DataDog
+  - "-Ddd.trace.classes.exclude=com.contrast*"
+  # Additional production JVM flags
+  - "-XX:+UseG1GC"
+  - "-XX:MaxGCPauseMillis=200"
+
+# Production-specific settings
+contrast_download_timeout: 120
+contrast_download_validate_certs: true
+
+# Use specific version in production (pin for stability)
+contrast_agent_version: "6.19.0"

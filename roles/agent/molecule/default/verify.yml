@@ -1,0 +1,109 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  
+  tasks:
+    - name: Check if Contrast agent JAR exists
+      stat:
+        path: /opt/contrast/contrast.jar
+      register: agent_jar
+    
+    - name: Assert agent JAR was downloaded
+      assert:
+        that:
+          - agent_jar.stat.exists
+          - agent_jar.stat.isreg
+        fail_msg: "Contrast agent JAR not found at expected location"
+        success_msg: "Contrast agent JAR successfully downloaded"
+    
+    - name: Check systemd override file
+      stat:
+        path: /etc/systemd/system/tomcat.service.d/10-contrast.conf
+      register: override_file
+      when: contrast_config_method | default('systemd') == 'systemd'
+    
+    - name: Assert override file exists
+      assert:
+        that:
+          - override_file.stat.exists
+          - override_file.stat.isreg
+        fail_msg: "Systemd override file not found"
+        success_msg: "Systemd override file created successfully"
+      when: contrast_config_method | default('systemd') == 'systemd'
+    
+    - name: Read override file content
+      slurp:
+        src: /etc/systemd/system/tomcat.service.d/10-contrast.conf
+      register: override_content
+      when: contrast_config_method | default('systemd') == 'systemd'
+    
+    - name: Decode and check override content
+      set_fact:
+        override_text: "{{ override_content.content | b64decode }}"
+      when: contrast_config_method | default('systemd') == 'systemd'
+    
+    - name: Assert override contains javaagent
+      assert:
+        that:
+          - "'-javaagent:/opt/contrast/contrast.jar' in override_text"
+          - "'JAVA_TOOL_OPTIONS' in override_text"
+        fail_msg: "Override file doesn't contain expected javaagent configuration"
+        success_msg: "Override file correctly configured"
+      when: contrast_config_method | default('systemd') == 'systemd'
+    
+    - name: Check if service is running
+      systemd:
+        name: tomcat
+      register: tomcat_service
+    
+    - name: Assert service is active
+      assert:
+        that:
+          - tomcat_service.status.ActiveState == "active"
+        fail_msg: "Tomcat service is not active"
+        success_msg: "Tomcat service is running"
+    
+    - name: Test idempotency - run role again
+      include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
+      vars:
+        contrast_agent_enabled: true
+        contrast_service_name: "tomcat"
+        contrast_agent_version: "6.19.0"
+        contrast_security_config:
+          api:
+            url: "https://app.contrastsecurity.com/Contrast"
+            api_key: "test-api-key"
+            service_key: "test-service-key"
+            user_name: "test-user"
+      register: second_run
+    
+    - name: Assert role is idempotent
+      assert:
+        that:
+          - not second_run.changed
+        fail_msg: "Role is not idempotent"
+        success_msg: "Role is idempotent"
+    
+    - name: Test deactivation
+      include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
+      vars:
+        contrast_agent_enabled: false
+        contrast_service_name: "tomcat"
+    
+    - name: Check override file removed
+      stat:
+        path: /etc/systemd/system/tomcat.service.d/10-contrast.conf
+      register: override_removed
+      when: contrast_config_method | default('systemd') == 'systemd'
+    
+    - name: Assert override was removed
+      assert:
+        that:
+          - not override_removed.stat.exists
+        fail_msg: "Override file was not removed during deactivation"
+        success_msg: "Override file successfully removed"
+      when: contrast_config_method | default('systemd') == 'systemd'
