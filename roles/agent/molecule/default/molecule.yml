@@ -7,27 +7,22 @@ platforms:
   - name: ubuntu2004
     image: ubuntu:20.04
     pre_build_image: false
+    dockerfile: Dockerfile.ubuntu2004
     privileged: true
-    dockerfile: |
-      FROM ubuntu:20.04
-      ENV DEBIAN_FRONTEND=noninteractive
-      RUN apt-get update && apt-get install -y \
-          python3 \
-          python3-apt \
-          sudo \
-          systemd \
-          procps \
-          curl \
-          ca-certificates \
-          && rm -rf /var/lib/apt/lists/* \
-          && ln -sf /usr/bin/python3 /usr/bin/python
-      CMD ["/bin/bash", "-c", "while true; do sleep 30; done"]
+  
+  - name: amazonlinux2
+    image: amazonlinux:2
+    pre_build_image: false
+    dockerfile: Dockerfile.amazonlinux2
+    privileged: true
 
 provisioner:
   name: ansible
   inventory:
     host_vars:
       ubuntu2004:
+        ansible_python_interpreter: /usr/bin/python3
+      amazonlinux2:
         ansible_python_interpreter: /usr/bin/python3
   
   config_options:

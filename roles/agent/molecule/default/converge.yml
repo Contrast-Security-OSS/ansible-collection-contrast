@@ -10,11 +10,23 @@
       when: ansible_os_family == "Debian"
       changed_when: false
     
-    - name: Install required packages
+    # Skip yum cache update as it's not necessary for testing and can cause issues
+    - name: Skip yum cache update for testing
+      debug:
+        msg: "Skipping yum cache update for container testing"
+      when: ansible_os_family == "RedHat"
+    
+    - name: Install required packages (Debian)
       package:
         name:
           - procps
         state: present
+      when: ansible_os_family == "Debian"
+    
+    - name: Install required packages (RedHat)
+      shell: yum install -y procps-ng
+      when: ansible_os_family == "RedHat"
+      changed_when: false
     
     - name: Create mock tomcat directories
       file:
