@@ -25,10 +25,10 @@ tags:
   - monitoring
   - vulnerability
 
-repository: https://github.com/Contrast-Security/ansible-collection-contrast
-documentation: https://github.com/Contrast-Security/ansible-collection-contrast/blob/main/README.md
+repository: https://github.com/Contrast-Security-OSS/ansible-collection-contrast
+documentation: https://github.com/Contrast-Security-OSS/ansible-collection-contrast/blob/main/README.md
 homepage: https://www.contrastsecurity.com
-issues: https://github.com/Contrast-Security/ansible-collection-contrast/issues
+issues: https://github.com/Contrast-Security-OSS/ansible-collection-contrast/issues
 
 dependencies: {}
 

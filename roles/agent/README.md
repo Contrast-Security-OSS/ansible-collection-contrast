@@ -66,7 +66,7 @@ ansible-galaxy collection install contrast.security
 ### From Source
 
 ```bash
-git clone https://github.com/Contrast-Security/ansible-collection-contrast.git
+git clone https://github.com/Contrast-Security-OSS/ansible-collection-contrast.git
 cd ansible-collection-contrast
 ansible-galaxy collection build
 ansible-galaxy collection install contrast-security-*.tar.gz
@@ -250,10 +250,10 @@ MIT
 
 This role is maintained by Contrast Security.
 - Website: https://www.contrastsecurity.com
-- Support: support@contrastsecurity.com
+- Support: https://support.contrastsecurity.com
 - Documentation: https://docs.contrastsecurity.com
 
 ## Contributing
 
 Please submit issues and pull requests to:
-https://github.com/Contrast-Security/ansible-collection-contrast
+https://github.com/Contrast-Security-OSS/ansible-collection-contrast

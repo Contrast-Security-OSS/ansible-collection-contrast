@@ -32,8 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Red Hat Enterprise Linux 7, 8, 9
 - CentOS 7, 8
 - Amazon Linux 2, 2023
-- Ubuntu 18.04, 20.04, 22.04
-- Debian 10, 11, 12
+- Ubuntu 20.04, 22.04, 24.04
+- Debian 11, 12, 13
 
-[Unreleased]: https://github.com/Contrast-Security/ansible-collection-contrast/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/Contrast-Security/ansible-collection-contrast/releases/tag/v1.0.0
+[Unreleased]: https://github.com/Contrast-Security-OSS/ansible-collection-contrast/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Contrast-Security-OSS/ansible-collection-contrast/releases/tag/v1.0.0

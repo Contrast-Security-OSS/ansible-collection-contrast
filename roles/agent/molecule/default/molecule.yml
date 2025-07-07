@@ -9,11 +9,25 @@ platforms:
     pre_build_image: false
     dockerfile: Dockerfile.ubuntu2004
     privileged: true
-  
+  - name: ubuntu2204
+    image: ubuntu:22.04
+    pre_build_image: false
+    dockerfile: Dockerfile.ubuntu2204
+    privileged: true
+  - name: ubuntu2404
+    image: ubuntu:24.04
+    pre_build_image: false
+    dockerfile: Dockerfile.ubuntu2404
+    privileged: true
   - name: amazonlinux2
     image: amazonlinux:2
     pre_build_image: false
     dockerfile: Dockerfile.amazonlinux2
+    privileged: true
+  - name: amazonlinux2023
+    image: amazonlinux:2023
+    pre_build_image: false
+    dockerfile: Dockerfile.amazonlinux2023
     privileged: true
 
 provisioner:
@@ -22,9 +36,15 @@ provisioner:
     host_vars:
       ubuntu2004:
         ansible_python_interpreter: /usr/bin/python3
+      ubuntu2204:
+        ansible_python_interpreter: /usr/bin/python3
+      ubuntu2404:
+        ansible_python_interpreter: /usr/bin/python3
       amazonlinux2:
         ansible_python_interpreter: /usr/bin/python3
-  
+      amazonlinux2023:
+        ansible_python_interpreter: /usr/bin/python3
+
   config_options:
     defaults:
       callbacks_enabled: profile_tasks
