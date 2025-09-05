@@ -1,0 +1,71 @@
+---
+dependency:
+  name: galaxy
+
+driver:
+  name: docker
+
+platforms:
+  - name: ubuntu2204-arm64
+    image: ubuntu:22.04
+    platform: linux/arm64
+    pre_build_image: false
+    dockerfile: Dockerfile.ubuntu2204-arm64
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    
+  - name: ubuntu2404-arm64
+    image: ubuntu:24.04
+    platform: linux/arm64
+    pre_build_image: false
+    dockerfile: Dockerfile.ubuntu2404-arm64
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    
+  - name: rocky9-arm64
+    image: rockylinux:9
+    platform: linux/arm64
+    pre_build_image: false
+    dockerfile: Dockerfile.rocky9-arm64
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+
+provisioner:
+  name: ansible
+  inventory:
+    host_vars:
+      ubuntu2204-arm64:
+        ansible_python_interpreter: /usr/bin/python3
+        contrast_config_method: environment  # Use environment for container testing
+      ubuntu2404-arm64:
+        ansible_python_interpreter: /usr/bin/python3
+        contrast_config_method: environment
+      rocky9-arm64:
+        ansible_python_interpreter: /usr/bin/python3
+        contrast_config_method: environment
+  config_options:
+    defaults:
+      callbacks_enabled: profile_tasks
+      stdout_callback: yaml
+
+verifier:
+  name: ansible
+
+scenario:
+  name: apple-silicon
+  test_sequence:
+    - dependency
+    - destroy
+    - syntax
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - verify
+    - destroy

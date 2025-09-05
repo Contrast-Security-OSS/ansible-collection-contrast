@@ -1,0 +1,206 @@
+---
+- name: Prepare test environment
+  hosts: all
+  become: true
+  gather_facts: true
+  
+  vars:
+    # Default service names per OS family
+    default_service_names:
+      RedHat: tomcat
+      Debian: tomcat9
+    
+    # Default Java packages per OS family  
+    default_java_packages:
+      RedHat: java-11-openjdk-devel
+      Debian: openjdk-11-jdk
+      
+  pre_tasks:
+    - name: Set service name based on OS family
+      set_fact:
+        contrast_service_name: "{{ tomcat_package | default(default_service_names[ansible_os_family]) }}"
+      when: contrast_service_name is not defined
+      
+    - name: Set Java package based on OS family
+      set_fact:
+        java_package: "{{ java_package | default(default_java_packages[ansible_os_family]) }}"
+      when: java_package is not defined
+
+  tasks:
+    - name: Update package cache (Debian)
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+      retries: 3
+      delay: 10
+
+    - name: Update package cache (RedHat)
+      yum:
+        update_cache: yes
+      when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int < 8
+      retries: 3
+      delay: 10
+
+    - name: Update package cache (RHEL 8+)
+      dnf:
+        update_cache: yes
+      when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int >= 8
+      retries: 3
+      delay: 10
+
+    - name: Install base packages
+      package:
+        name:
+          - curl
+          - wget
+          - unzip
+          - tar
+          - python3
+        state: present
+
+    - name: Install Java
+      package:
+        name: "{{ java_package }}"
+        state: present
+
+    - name: Install Tomcat (Debian)
+      package:
+        name: "{{ contrast_service_name }}"
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install Tomcat (RedHat)
+      package:
+        name: tomcat
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Create Tomcat directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: tomcat
+        group: tomcat
+        mode: '0755'
+      loop:
+        - /opt/tomcat
+        - /opt/tomcat/bin
+        - /opt/tomcat/conf
+        - /opt/tomcat/logs
+        - /var/log/contrast
+      ignore_errors: true  # Some directories might already exist
+
+    - name: Create setenv.sh script
+      copy:
+        dest: /opt/tomcat/bin/setenv.sh
+        content: |
+          #!/bin/bash
+          # Tomcat environment configuration
+          export JAVA_OPTS=""
+          export CATALINA_OPTS=""
+        mode: '0755'
+        owner: tomcat
+        group: tomcat
+        force: no
+
+    - name: Create basic server.xml for Tomcat
+      copy:
+        dest: /opt/tomcat/conf/server.xml
+        content: |
+          <?xml version="1.0" encoding="UTF-8"?>
+          <Server port="8005" shutdown="SHUTDOWN">
+            <Service name="Catalina">
+              <Connector port="8080" protocol="HTTP/1.1" 
+                         connectionTimeout="20000" 
+                         redirectPort="8443" />
+              <Engine name="Catalina" defaultHost="localhost">
+                <Host name="localhost" appBase="webapps" 
+                      unpackWARs="true" autoDeploy="true">
+                </Host>
+              </Engine>
+            </Service>
+          </Server>
+        mode: '0644'
+        owner: tomcat
+        group: tomcat
+        force: no
+
+    - name: Ensure systemd directory exists
+      file:
+        path: /etc/systemd/system
+        state: directory
+        mode: '0755'
+
+    - name: Create or verify Tomcat systemd service file
+      copy:
+        dest: "/etc/systemd/system/{{ contrast_service_name }}.service"
+        content: |
+          [Unit]
+          Description=Apache Tomcat Web Application Container
+          After=network.target
+
+          [Service]
+          Type=forking
+          User=tomcat
+          Group=tomcat
+          Environment="JAVA_HOME=/usr/lib/jvm/java-11-openjdk"
+          Environment="CATALINA_HOME=/opt/tomcat"
+          Environment="CATALINA_BASE=/opt/tomcat"
+          ExecStart=/opt/tomcat/bin/startup.sh
+          ExecStop=/opt/tomcat/bin/shutdown.sh
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: '0644'
+        force: no
+
+    - name: Create startup/shutdown scripts
+      copy:
+        dest: "/opt/tomcat/bin/{{ item }}"
+        content: |
+          #!/bin/bash
+          # Mock {{ item }} script for testing
+          echo "{{ item }} executed"
+          exit 0
+        mode: '0755'
+        owner: tomcat
+        group: tomcat
+        force: no
+      loop:
+        - startup.sh
+        - shutdown.sh
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable Tomcat service
+      systemd:
+        name: "{{ contrast_service_name }}"
+        enabled: yes
+        state: stopped  # Keep stopped for testing
+
+    - name: Verify Java installation
+      command: java -version
+      register: java_version
+      changed_when: false
+
+    - name: Display Java version
+      debug:
+        var: java_version.stderr_lines
+
+    - name: Verify Tomcat service status
+      systemd:
+        name: "{{ contrast_service_name }}"
+      register: tomcat_status
+
+    - name: Display environment info
+      debug:
+        msg:
+          - "OS Family: {{ ansible_os_family }}"
+          - "Distribution: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "Service Name: {{ contrast_service_name }}"
+          - "Java Package: {{ java_package }}"
+          - "Tomcat Status: {{ tomcat_status.status.LoadState }}"

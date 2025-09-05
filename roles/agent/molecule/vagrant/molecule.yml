@@ -1,0 +1,143 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: vagrant
+  provider:
+    name: virtualbox
+  
+platforms:
+  - name: ubuntu2004-vagrant
+    box: ubuntu/focal64
+    memory: 1024
+    cpus: 1
+    provider_options:
+      gui: false
+    groups:
+      - ubuntu
+      - systemd_hosts
+    interfaces:
+      - network_name: private_network
+        type: dhcp
+    
+  - name: ubuntu2204-vagrant
+    box: ubuntu/jammy64
+    memory: 1024
+    cpus: 1
+    provider_options:
+      gui: false
+    groups:
+      - ubuntu
+      - systemd_hosts
+    interfaces:
+      - network_name: private_network
+        type: dhcp
+        
+  - name: centos8-vagrant
+    box: centos/8
+    memory: 1024
+    cpus: 1
+    provider_options:
+      gui: false
+    groups:
+      - centos
+      - systemd_hosts
+    interfaces:
+      - network_name: private_network
+        type: dhcp
+        
+  - name: amazonlinux2-vagrant
+    box: gbailey/amzn2
+    memory: 1024
+    cpus: 1
+    provider_options:
+      gui: false
+    groups:
+      - amazonlinux
+      - systemd_hosts
+    interfaces:
+      - network_name: private_network
+        type: dhcp
+
+provisioner:
+  name: ansible
+  inventory:
+    group_vars:
+      all:
+        # Common test variables
+        contrast_test_mode: true
+        ansible_python_interpreter: /usr/bin/python3
+        
+      ubuntu:
+        java_package: openjdk-11-jdk
+        tomcat_package: tomcat9
+        contrast_service_name: tomcat9
+        
+      centos:
+        java_package: java-11-openjdk-devel
+        tomcat_package: tomcat
+        contrast_service_name: tomcat
+        
+      amazonlinux:
+        java_package: java-11-amazon-corretto-devel
+        tomcat_package: tomcat
+        contrast_service_name: tomcat
+        
+    host_vars:
+      ubuntu2004-vagrant:
+        ansible_user: vagrant
+        ansible_ssh_private_key_file: ~/.vagrant.d/insecure_private_key
+        
+      ubuntu2204-vagrant:
+        ansible_user: vagrant
+        ansible_ssh_private_key_file: ~/.vagrant.d/insecure_private_key
+        
+      centos8-vagrant:
+        ansible_user: vagrant
+        ansible_ssh_private_key_file: ~/.vagrant.d/insecure_private_key
+        
+      amazonlinux2-vagrant:
+        ansible_user: vagrant
+        ansible_ssh_private_key_file: ~/.vagrant.d/insecure_private_key
+
+  config_options:
+    defaults:
+      callbacks_enabled: profile_tasks
+      stdout_callback: yaml
+      host_key_checking: false
+      roles_path: /Users/jonathanharper/MCP/contrast.security/roles
+    ssh_connection:
+      pipelining: true
+
+verifier:
+  name: ansible
+
+scenario:
+  name: vagrant
+  test_sequence:
+    - dependency
+    - lint
+    - destroy
+    - syntax
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - side_effect
+    - verify
+    - destroy
+
+  create_sequence:
+    - dependency
+    - create
+    - prepare
+
+  converge_sequence:
+    - dependency
+    - create
+    - prepare
+    - converge
+
+  destroy_sequence:
+    - dependency
+    - destroy

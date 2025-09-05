@@ -1,0 +1,78 @@
+---
+- name: Setup test environment on Vagrant VMs
+  hosts: all
+  become: true
+  gather_facts: true
+  
+  vars:
+    # Service name mapping
+    service_mapping:
+      ubuntu2004: tomcat9
+      ubuntu2204: tomcat9
+      centos8: tomcat
+      rocky9: tomcat
+      amazonlinux2: tomcat
+      
+    # Java package mapping
+    java_mapping:
+      ubuntu2004: openjdk-11-jdk
+      ubuntu2204: openjdk-11-jdk
+      centos8: java-11-openjdk-devel
+      rocky9: java-11-openjdk-devel
+      amazonlinux2: java-11-amazon-corretto-devel
+
+  tasks:
+    - name: Set distribution-specific variables
+      set_fact:
+        target_service_name: "{{ service_mapping[test_scenario] | default(service_name) }}"
+        target_java_package: "{{ java_mapping[test_scenario] | default(java_package) }}"
+      
+    - name: Update package cache
+      package:
+        update_cache: yes
+      retries: 3
+      delay: 10
+      
+    - name: Install base packages
+      package:
+        name:
+          - curl
+          - wget
+          - unzip
+          - python3
+          - "{{ target_java_package }}"
+        state: present
+        
+    - name: Install Tomcat
+      package:
+        name: "{{ target_service_name if ansible_os_family == 'Debian' else 'tomcat' }}"
+        state: present
+        
+    - name: Create necessary directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: tomcat
+        group: tomcat
+        mode: '0755'
+      loop:
+        - /opt/tomcat
+        - /opt/tomcat/bin
+        - /var/log/contrast
+      ignore_errors: true
+      
+    - name: Create setenv.sh
+      copy:
+        dest: /opt/tomcat/bin/setenv.sh
+        content: |
+          #!/bin/bash
+          export JAVA_OPTS=""
+        mode: '0755'
+        force: no
+        
+    - name: Enable and start Tomcat service
+      systemd:
+        name: "{{ target_service_name }}"
+        enabled: yes
+        state: started
+      ignore_errors: true  # Service might not start in all test environments

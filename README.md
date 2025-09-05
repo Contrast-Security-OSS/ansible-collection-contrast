@@ -144,12 +144,49 @@ contrast_security_config:
 
 ## Testing
 
-This collection includes Molecule tests for verification:
+This collection includes comprehensive testing using Molecule:
+
+### Standard Testing (x86_64)
+
+For most users with Intel/AMD systems:
 
 ```bash
 cd roles/agent
 molecule test
 ```
+
+### Apple Silicon (M1/M2/M3) Mac Testing
+
+Apple Silicon users have **two testing options**:
+
+#### Option 1: Quick Development Testing
+Fast Docker-based testing for quick validation:
+
+```bash
+# Quick test with specific OS
+./test-docker.sh ubuntu2204    # Ubuntu 22.04 (default)
+./test-docker.sh ubuntu2404    # Ubuntu 24.04 LTS
+./test-docker.sh rocky9        # Rocky Linux 9
+
+# All supported targets:
+./test-docker.sh ubuntu2004    # Ubuntu 20.04 LTS
+./test-docker.sh centos9       # CentOS Stream 9
+```
+
+#### Option 2: Full Molecule Testing
+Comprehensive ARM64 testing with Molecule:
+
+```bash
+cd roles/agent
+molecule test -s apple-silicon
+```
+
+### Why Two Approaches?
+
+- **`test-docker.sh`**: Fast feedback for developers (~2 minutes)
+- **`molecule test`**: Comprehensive testing with advanced scenarios (~10 minutes)
+
+For full Apple Silicon setup instructions, see [APPLE_SILICON_SETUP.md](APPLE_SILICON_SETUP.md).
 
 ## Contributing
 

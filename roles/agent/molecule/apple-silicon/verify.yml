@@ -1,0 +1,48 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Contrast agent installation
+      stat:
+        path: /opt/contrast/contrast.jar
+      register: agent_jar
+
+    - name: Assert agent JAR exists
+      assert:
+        that:
+          - agent_jar.stat.exists
+          - agent_jar.stat.isreg
+        fail_msg: "Contrast agent JAR not found at /opt/contrast/contrast.jar"
+        success_msg: "✅ Contrast agent JAR found and is a regular file"
+
+    - name: Verify agent directory permissions
+      stat:
+        path: /opt/contrast
+      register: agent_dir
+
+    - name: Assert agent directory is properly configured
+      assert:
+        that:
+          - agent_dir.stat.exists
+          - agent_dir.stat.isdir
+        fail_msg: "Contrast agent directory not properly configured"
+        success_msg: "✅ Contrast agent directory properly configured"
+
+    - name: Check if systemd override exists (if using systemd)
+      stat:
+        path: "/etc/systemd/system/{{ service_name | default('tomcat') }}.service.d/contrast.conf"
+      register: systemd_override
+      when: contrast_config_method == "systemd"
+
+    - name: Verify systemd configuration (if using systemd)
+      assert:
+        that:
+          - systemd_override.stat.exists
+        fail_msg: "Systemd override configuration not found"
+        success_msg: "✅ Systemd override configuration found"
+      when: contrast_config_method == "systemd"
+
+    - name: Display test completion
+      debug:
+        msg: "🎉 All Apple Silicon ARM64 container tests passed successfully!"

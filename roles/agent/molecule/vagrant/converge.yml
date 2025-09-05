@@ -1,0 +1,70 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  gather_facts: true
+  
+  pre_tasks:
+    - name: Set service name for testing
+      set_fact:
+        contrast_service_name: "{{ tomcat_package | default('tomcat9' if ansible_os_family == 'Debian' else 'tomcat') }}"
+      when: contrast_service_name is not defined
+
+  tasks:
+    - name: "Include contrast.security.agent role - Basic activation"
+      include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
+      vars:
+        contrast_agent_enabled: true
+        contrast_agent_version: "6.19.0"
+        contrast_config_method: "systemd"
+        contrast_config_source: "environment"
+        contrast_test_mode: true
+        contrast_security_config:
+          api:
+            url: "https://app.contrastsecurity.com/Contrast"
+            api_key: "test-api-key"
+            service_key: "test-service-key"
+            user_name: "test-user"
+          application:
+            name: "TestApp"
+            tags: "env:test,scenario:vagrant"
+          agent:
+            logger:
+              path: "/var/log/contrast/contrast.log"
+              level: "INFO"
+
+    - name: Wait a moment for changes to settle
+      pause:
+        seconds: 2
+
+    - name: "Test role idempotency"
+      include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
+      vars:
+        contrast_agent_enabled: true
+        contrast_agent_version: "6.19.0"
+        contrast_config_method: "systemd"
+        contrast_config_source: "environment"
+        contrast_test_mode: true
+        contrast_security_config:
+          api:
+            url: "https://app.contrastsecurity.com/Contrast"
+            api_key: "test-api-key"
+            service_key: "test-service-key"
+            user_name: "test-user"
+          application:
+            name: "TestApp"
+            tags: "env:test,scenario:vagrant"
+          agent:
+            logger:
+              path: "/var/log/contrast/contrast.log"
+              level: "INFO"
+      register: second_run
+
+    - name: Assert idempotency
+      assert:
+        that:
+          - not second_run.changed
+        fail_msg: "Role is not idempotent - second run should not make changes"
+        success_msg: "Role is idempotent"

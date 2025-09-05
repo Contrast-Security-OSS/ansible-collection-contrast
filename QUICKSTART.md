@@ -88,6 +88,21 @@ molecule test
 3. Test in a development environment first
 4. Consider publishing to Ansible Galaxy for wider distribution
 
+## Testing
+
+### Standard Testing
+```bash
+cd roles/agent
+molecule test
+```
+
+### Apple Silicon Mac Users
+For M1/M2/M3 Macs, use Docker-based testing:
+```bash
+./test-docker.sh ubuntu2204
+```
+See [APPLE_SILICON_SETUP.md](APPLE_SILICON_SETUP.md) for details.
+
 ## Support
 
 Refer to the comprehensive documentation in:

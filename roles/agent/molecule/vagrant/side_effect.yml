@@ -1,0 +1,218 @@
+---
+- name: Side Effect Tests
+  hosts: all
+  become: true
+  gather_facts: true
+  
+  vars:
+    expected_service_name: "{{ tomcat_package | default('tomcat9' if ansible_os_family == 'Debian' else 'tomcat') }}"
+    
+  tasks:
+    - name: Create pre-existing systemd override for testing
+      file:
+        path: "/etc/systemd/system/{{ expected_service_name }}.service.d"
+        state: directory
+        mode: '0755'
+
+    - name: Create pre-existing override file with custom configuration
+      copy:
+        dest: "/etc/systemd/system/{{ expected_service_name }}.service.d/99-custom.conf"
+        content: |
+          # Custom configuration that should be preserved
+          [Service]
+          Environment="CUSTOM_VAR=custom_value"
+          Environment="JAVA_OPTS=-Xmx512m"
+        mode: '0644'
+
+    - name: Create pre-existing setenv.sh with custom content
+      copy:
+        dest: /opt/tomcat/bin/setenv.sh
+        content: |
+          #!/bin/bash
+          # Custom setenv.sh that should be preserved
+          export CUSTOM_JAVA_OPTS="-Xmx512m -Dfile.encoding=UTF-8"
+          export CATALINA_OPTS="$CATALINA_OPTS $CUSTOM_JAVA_OPTS"
+          
+          # Some custom logic
+          if [ -f "/opt/custom/config.properties" ]; then
+              export JAVA_OPTS="$JAVA_OPTS -Dconfig.file=/opt/custom/config.properties"
+          fi
+        mode: '0755'
+
+    - name: Record original setenv.sh content
+      slurp:
+        src: /opt/tomcat/bin/setenv.sh
+      register: original_setenv
+
+    - name: Record original override directory contents
+      find:
+        paths: "/etc/systemd/system/{{ expected_service_name }}.service.d"
+        patterns: "*.conf"
+      register: original_overrides
+
+    - name: Display original configurations
+      debug:
+        msg:
+          - "Original setenv.sh size: {{ original_setenv.content | b64decode | length }}"
+          - "Original override files: {{ original_overrides.files | map(attribute='path') | list }}"
+
+    - name: Apply Contrast configuration (should preserve existing configs)
+      include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
+      vars:
+        contrast_agent_enabled: true
+        contrast_agent_version: "6.19.0"
+        contrast_config_method: "systemd"
+        contrast_service_name: "{{ expected_service_name }}"
+        contrast_test_mode: true
+        contrast_security_config:
+          api:
+            url: "https://app.contrastsecurity.com/Contrast"
+            api_key: "side-effect-test-key"
+
+    - name: Check that custom override file still exists
+      stat:
+        path: "/etc/systemd/system/{{ expected_service_name }}.service.d/99-custom.conf"
+      register: custom_override_after
+
+    - name: Assert custom override file preserved
+      assert:
+        that:
+          - custom_override_after.stat.exists
+        fail_msg: "Custom override file was removed - this is a side effect!"
+        success_msg: "Custom override file preserved"
+
+    - name: Read custom override file content
+      slurp:
+        src: "/etc/systemd/system/{{ expected_service_name }}.service.d/99-custom.conf"
+      register: custom_override_content
+
+    - name: Assert custom override content unchanged
+      assert:
+        that:
+          - "'CUSTOM_VAR=custom_value' in (custom_override_content.content | b64decode)"
+          - "'-Xmx512m' in (custom_override_content.content | b64decode)"
+        fail_msg: "Custom override file content was modified"
+        success_msg: "Custom override file content preserved"
+
+    - name: Check Contrast override file was created
+      stat:
+        path: "/etc/systemd/system/{{ expected_service_name }}.service.d/10-contrast.conf"
+      register: contrast_override
+
+    - name: Assert Contrast override exists alongside custom
+      assert:
+        that:
+          - contrast_override.stat.exists
+        fail_msg: "Contrast override not created"
+        success_msg: "Contrast override created without affecting existing files"
+
+    - name: Test setenv.sh preservation
+      include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
+      vars:
+        contrast_agent_enabled: true
+        contrast_agent_version: "6.19.0"
+        contrast_config_method: "setenv"
+        contrast_service_name: "{{ expected_service_name }}"
+        contrast_test_mode: true
+        contrast_security_config:
+          api:
+            url: "https://app.contrastsecurity.com/Contrast"
+            api_key: "setenv-side-effect-test"
+
+    - name: Read modified setenv.sh
+      slurp:
+        src: /opt/tomcat/bin/setenv.sh
+      register: modified_setenv
+
+    - name: Decode modified setenv.sh content
+      set_fact:
+        modified_setenv_text: "{{ modified_setenv.content | b64decode }}"
+
+    - name: Assert original setenv.sh content preserved
+      assert:
+        that:
+          - "'CUSTOM_JAVA_OPTS' in modified_setenv_text"
+          - "'file.encoding=UTF-8' in modified_setenv_text"
+          - "'config.file=/opt/custom/config.properties' in modified_setenv_text"
+          - "'-javaagent:/opt/contrast/contrast.jar' in modified_setenv_text"
+        fail_msg: "Original setenv.sh content was lost or javaagent not added"
+        success_msg: "Original setenv.sh content preserved and Contrast agent added"
+
+    - name: Test deactivation preservation
+      include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
+      vars:
+        contrast_agent_enabled: false
+        contrast_config_method: "setenv"
+        contrast_service_name: "{{ expected_service_name }}"
+        contrast_test_mode: true
+
+    - name: Read setenv.sh after deactivation
+      slurp:
+        src: /opt/tomcat/bin/setenv.sh
+      register: deactivated_setenv
+
+    - name: Decode deactivated setenv.sh content
+      set_fact:
+        deactivated_setenv_text: "{{ deactivated_setenv.content | b64decode }}"
+
+    - name: Assert original content preserved after deactivation
+      assert:
+        that:
+          - "'CUSTOM_JAVA_OPTS' in deactivated_setenv_text"
+          - "'file.encoding=UTF-8' in deactivated_setenv_text"
+          - "'-javaagent:/opt/contrast/contrast.jar' not in deactivated_setenv_text"
+        fail_msg: "Original content lost during deactivation or Contrast config not removed"
+        success_msg: "Clean deactivation - original content preserved, Contrast config removed"
+
+    - name: Test systemd deactivation preservation
+      include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
+      vars:
+        contrast_agent_enabled: false
+        contrast_config_method: "systemd"
+        contrast_service_name: "{{ expected_service_name }}"
+        contrast_test_mode: true
+
+    - name: Verify custom override still exists after systemd deactivation
+      stat:
+        path: "/etc/systemd/system/{{ expected_service_name }}.service.d/99-custom.conf"
+      register: final_custom_override
+
+    - name: Verify Contrast override removed
+      stat:
+        path: "/etc/systemd/system/{{ expected_service_name }}.service.d/10-contrast.conf"
+      register: final_contrast_override
+
+    - name: Assert proper selective cleanup
+      assert:
+        that:
+          - final_custom_override.stat.exists
+          - not final_contrast_override.stat.exists
+        fail_msg: "Selective cleanup failed - custom config lost or Contrast config not removed"
+        success_msg: "Perfect selective cleanup - custom configs preserved, Contrast configs removed"
+
+    - name: Test file permissions preservation
+      stat:
+        path: /opt/tomcat/bin/setenv.sh
+      register: final_setenv_perms
+
+    - name: Assert file permissions preserved
+      assert:
+        that:
+          - final_setenv_perms.stat.mode == "0755"
+          - final_setenv_perms.stat.pw_name == "tomcat"
+        fail_msg: "File permissions were changed"
+        success_msg: "File permissions preserved"
+
+    - name: Display side effect test summary
+      debug:
+        msg:
+          - "✅ Side effect tests passed!"
+          - "✅ Existing systemd override files preserved"
+          - "✅ Existing setenv.sh content preserved"
+          - "✅ Clean deactivation without affecting custom configs"
+          - "✅ File permissions and ownership preserved"
+          - "✅ No unintended side effects detected"

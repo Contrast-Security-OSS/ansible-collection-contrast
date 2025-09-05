@@ -40,3 +40,6 @@ dist/
 
 # Local overrides
 local.yml
+
+# Vagrant
+.vagrant/

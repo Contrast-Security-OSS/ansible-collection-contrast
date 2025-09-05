@@ -1,0 +1,32 @@
+---
+- name: Test Contrast Agent in Container
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    contrast_agent_enabled: true
+    contrast_agent_version: "6.19.0"
+    contrast_config_method: "environment"  # Use environment instead of systemd
+    contrast_test_mode: true
+    contrast_security_config:
+      api:
+        url: "https://app.contrastsecurity.com/Contrast"
+        api_key: "container-test-key"
+        service_key: "container-test-service"
+        user_name: "container-test-user"
+      application:
+        name: "ContainerTest"
+        
+  tasks:
+    - name: Include contrast agent role
+      include_role:
+        name: agent
+        
+    - name: Verify agent installation
+      stat:
+        path: /opt/contrast/contrast.jar
+      register: agent_check
+      
+    - name: Show test result
+      debug:
+        msg: "✅ Container test {{ 'PASSED' if agent_check.stat.exists else 'FAILED' }}"

@@ -1,0 +1,40 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  vars:
+    contrast_agent_enabled: true
+    contrast_agent_version: "6.19.0"
+    contrast_config_method: "environment"  # Use environment for container testing
+    contrast_test_mode: true
+    contrast_security_config:
+      api:
+        url: "https://app.contrastsecurity.com/Contrast"
+        api_key: "molecule-test-key"
+        service_key: "molecule-test-service"
+        user_name: "molecule-test-user"
+      application:
+        name: "MoleculeTest"
+
+  tasks:
+    - name: Include contrast agent role
+      include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
+      vars:
+        contrast_agent_enabled: true
+        contrast_service_name: "tomcat"
+        contrast_config_method: "setenv"
+        contrast_agent_version: "6.19.0"
+        contrast_test_mode: true
+        contrast_security_config:
+          api:
+            url: "https://app.contrastsecurity.com/Contrast"
+            api_key: "test-api-key"
+            service_key: "test-service-key"
+            user_name: "test-user"
+          application:
+            name: "molecule-test-app"
+            tags: "env:test,molecule:true"
+          server:
+            name: "molecule-test-server"
+            environment: "test"

@@ -1,0 +1,257 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  
+  vars:
+    expected_service_name: "{{ tomcat_package | default('tomcat9' if ansible_os_family == 'Debian' else 'tomcat') }}"
+    
+  tasks:
+    - name: Check if Contrast agent JAR exists
+      stat:
+        path: /opt/contrast/contrast.jar
+      register: agent_jar
+
+    - name: Assert agent JAR was downloaded
+      assert:
+        that:
+          - agent_jar.stat.exists
+          - agent_jar.stat.size > 1000000  # Should be > 1MB
+        fail_msg: "Contrast agent JAR not found or too small"
+        success_msg: "Contrast agent JAR downloaded successfully"
+
+    - name: Get agent JAR file info
+      stat:
+        path: /opt/contrast/contrast.jar
+      register: jar_info
+
+    - name: Display agent JAR info
+      debug:
+        msg:
+          - "Agent JAR size: {{ jar_info.stat.size | human_readable }}"
+          - "Owner: {{ jar_info.stat.pw_name }}"
+          - "Group: {{ jar_info.stat.gr_name }}"
+          - "Mode: {{ jar_info.stat.mode }}"
+
+    - name: Check systemd override directory
+      stat:
+        path: "/etc/systemd/system/{{ expected_service_name }}.service.d"
+      register: override_dir
+
+    - name: Assert systemd override directory exists
+      assert:
+        that:
+          - override_dir.stat.exists
+          - override_dir.stat.isdir
+        fail_msg: "Systemd override directory not found"
+        success_msg: "Systemd override directory exists"
+
+    - name: Check systemd override file
+      stat:
+        path: "/etc/systemd/system/{{ expected_service_name }}.service.d/10-contrast.conf"
+      register: override_file
+
+    - name: Assert systemd override file exists
+      assert:
+        that:
+          - override_file.stat.exists
+          - override_file.stat.size > 0
+        fail_msg: "Systemd override file not found or empty"
+        success_msg: "Systemd override file exists"
+
+    - name: Read systemd override file content
+      slurp:
+        src: "/etc/systemd/system/{{ expected_service_name }}.service.d/10-contrast.conf"
+      register: override_content
+
+    - name: Decode override file content
+      set_fact:
+        override_text: "{{ override_content.content | b64decode }}"
+
+    - name: Display override file content
+      debug:
+        var: override_text
+
+    - name: Assert override file contains javaagent
+      assert:
+        that:
+          - "'-javaagent:/opt/contrast/contrast.jar' in override_text"
+          - "'[Service]' in override_text"
+          - "'JAVA_TOOL_OPTIONS' in override_text"
+        fail_msg: "Override file doesn't contain expected javaagent configuration"
+        success_msg: "Override file contains correct javaagent configuration"
+
+    - name: Check for environment variables in override
+      assert:
+        that:
+          - "'CONTRAST__API__URL' in override_text"
+          - "'CONTRAST__API__API_KEY' in override_text"
+          - "'CONTRAST__APPLICATION__NAME' in override_text"
+        fail_msg: "Expected environment variables not found in override file"
+        success_msg: "Environment variables properly configured"
+
+    - name: Verify systemd daemon has been reloaded
+      command: systemctl is-enabled "{{ expected_service_name }}"
+      register: service_enabled
+      changed_when: false
+
+    - name: Assert service is enabled
+      assert:
+        that:
+          - "'enabled' in service_enabled.stdout"
+        fail_msg: "Service is not enabled"
+        success_msg: "Service is properly enabled"
+
+    - name: Check service configuration
+      command: systemctl show "{{ expected_service_name }}" --property=Environment
+      register: service_env
+      changed_when: false
+
+    - name: Display service environment
+      debug:
+        var: service_env.stdout
+
+    - name: Test deactivation functionality
+      include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
+      vars:
+        contrast_agent_enabled: false
+        contrast_service_name: "{{ expected_service_name }}"
+        contrast_test_mode: true
+
+    - name: Verify override file was removed after deactivation
+      stat:
+        path: "/etc/systemd/system/{{ expected_service_name }}.service.d/10-contrast.conf"
+      register: override_after_deactivation
+
+    - name: Assert override file was removed
+      assert:
+        that:
+          - not override_after_deactivation.stat.exists
+        fail_msg: "Override file still exists after deactivation"
+        success_msg: "Override file properly removed after deactivation"
+
+    - name: Check if override directory was cleaned up
+      stat:
+        path: "/etc/systemd/system/{{ expected_service_name }}.service.d"
+      register: override_dir_after
+
+    - name: Check override directory contents
+      find:
+        paths: "/etc/systemd/system/{{ expected_service_name }}.service.d"
+        file_type: file
+      register: override_dir_files
+      when: override_dir_after.stat.exists
+
+    - name: Assert directory cleanup
+      assert:
+        that:
+          - not override_dir_after.stat.exists or override_dir_files.files | length == 0
+        fail_msg: "Override directory not properly cleaned up"
+        success_msg: "Override directory properly cleaned up"
+
+    - name: Test reactivation after deactivation
+      include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
+      vars:
+        contrast_agent_enabled: true
+        contrast_agent_version: "6.19.0"
+        contrast_config_method: "systemd"
+        contrast_service_name: "{{ expected_service_name }}"
+        contrast_test_mode: true
+        contrast_security_config:
+          api:
+            url: "https://app.contrastsecurity.com/Contrast"
+            api_key: "reactivation-test-key"
+            service_key: "reactivation-test-service-key"
+            user_name: "reactivation-test-user"
+
+    - name: Verify reactivation worked
+      stat:
+        path: "/etc/systemd/system/{{ expected_service_name }}.service.d/10-contrast.conf"
+      register: reactivation_check
+
+    - name: Assert reactivation successful
+      assert:
+        that:
+          - reactivation_check.stat.exists
+        fail_msg: "Reactivation failed - override file not recreated"
+        success_msg: "Reactivation successful"
+
+    - name: Test different configuration methods - setenv.sh
+      include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
+      vars:
+        contrast_agent_enabled: true
+        contrast_agent_version: "6.19.0"
+        contrast_config_method: "setenv"
+        contrast_service_name: "{{ expected_service_name }}"
+        contrast_test_mode: true
+        contrast_security_config:
+          api:
+            url: "https://app.contrastsecurity.com/Contrast"
+            api_key: "setenv-test-key"
+
+    - name: Check setenv.sh was modified
+      stat:
+        path: /opt/tomcat/bin/setenv.sh
+      register: setenv_file
+
+    - name: Read setenv.sh content
+      slurp:
+        src: /opt/tomcat/bin/setenv.sh
+      register: setenv_content
+
+    - name: Decode setenv.sh content
+      set_fact:
+        setenv_text: "{{ setenv_content.content | b64decode }}"
+
+    - name: Display setenv.sh content
+      debug:
+        var: setenv_text
+
+    - name: Assert setenv.sh contains javaagent
+      assert:
+        that:
+          - "'-javaagent:/opt/contrast/contrast.jar' in setenv_text"
+          - "'BEGIN ANSIBLE MANAGED BLOCK' in setenv_text"
+        fail_msg: "setenv.sh doesn't contain expected javaagent configuration"
+        success_msg: "setenv.sh contains correct javaagent configuration"
+
+    - name: Final cleanup - deactivate agent
+      include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
+      vars:
+        contrast_agent_enabled: false
+        contrast_config_method: "setenv"
+        contrast_service_name: "{{ expected_service_name }}"
+        contrast_test_mode: true
+
+    - name: Verify final cleanup
+      slurp:
+        src: /opt/tomcat/bin/setenv.sh
+      register: final_setenv
+
+    - name: Check setenv.sh cleanup
+      set_fact:
+        final_setenv_text: "{{ final_setenv.content | b64decode }}"
+
+    - name: Assert final cleanup successful
+      assert:
+        that:
+          - "'-javaagent:/opt/contrast/contrast.jar' not in final_setenv_text"
+          - "'BEGIN ANSIBLE MANAGED BLOCK' not in final_setenv_text"
+        fail_msg: "Final cleanup failed - setenv.sh still contains Contrast configuration"
+        success_msg: "Final cleanup successful - all Contrast configuration removed"
+
+    - name: Display test summary
+      debug:
+        msg:
+          - "✅ All verification tests passed!"
+          - "✅ Agent installation works correctly"
+          - "✅ Systemd integration functions properly"
+          - "✅ setenv.sh method works correctly"
+          - "✅ Activation and deactivation work as expected"
+          - "✅ Role is idempotent"
+          - "✅ Configuration cleanup is thorough"

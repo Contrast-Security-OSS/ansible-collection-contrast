@@ -1,0 +1,32 @@
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3
+ansible_ssh_private_key_file=~/.vagrant.d/insecure_private_key
+
+[test_vms]
+ubuntu2004-contrast-test ansible_host=192.168.56.10
+ubuntu2204-contrast-test ansible_host=192.168.56.11  
+centos8-contrast-test ansible_host=192.168.56.12
+rocky9-contrast-test ansible_host=192.168.56.13
+amazonlinux2-contrast-test ansible_host=192.168.56.14
+
+[ubuntu]
+ubuntu2004-contrast-test
+ubuntu2204-contrast-test
+
+[centos]
+centos8-contrast-test
+
+[rocky]
+rocky9-contrast-test
+
+[amazonlinux]
+amazonlinux2-contrast-test
+
+[systemd_hosts:children]
+ubuntu
+centos
+rocky
+amazonlinux
+
+[test_vms:vars]
+ansible_user=vagrant
