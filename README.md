@@ -14,7 +14,7 @@ This collection provides enterprise-grade automation for deploying the Contrast 
 
 ## Installation
 
-### From Ansible Galaxy
+### From Ansible Galaxy (TODO: Update when published)
 
 ```bash
 ansible-galaxy collection install contrast.security
