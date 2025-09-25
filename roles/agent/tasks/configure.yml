@@ -34,8 +34,15 @@
       {% for key, value in contrast_security_config.items() recursive %}
         {% if value is mapping %}
           {% for subkey, subvalue in value.items() %}
-            {% set var_name = 'CONTRAST__' + key.upper() + '__' + subkey.upper() %}
-            {% set _ = env_vars.append(var_name + '=' + subvalue | string) %}
+            {% if subvalue is mapping %}
+              {% for subsubkey, subsubvalue in subvalue.items() %}
+                {% set var_name = 'CONTRAST__' + key.upper() + '__' + subkey.upper() + '__' + subsubkey.upper() %}
+                {% set _ = env_vars.append(var_name + '=' + subsubvalue | string) %}
+              {% endfor %}
+            {% else %}
+              {% set var_name = 'CONTRAST__' + key.upper() + '__' + subkey.upper() %}
+              {% set _ = env_vars.append(var_name + '=' + subvalue | string) %}
+            {% endif %}
           {% endfor %}
         {% else %}
           {% set var_name = 'CONTRAST__' + key.upper() %}

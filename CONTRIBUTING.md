@@ -27,7 +27,7 @@ We welcome contributions to the Contrast Security Ansible Collection! This docum
 ### Installing Development Dependencies
 
 ```bash
-pip install --user ansible molecule ansible-lint yamllint
+pip install --user ansible molecule ansible-lint yamllint molecule-docker
 ```
 
 ### Building the Collection
